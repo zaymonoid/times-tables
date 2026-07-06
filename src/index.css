@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  /* -- brand palette: warm flashcard, not a dark AI gradient app -- */
+  --font-rounded: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN",
+    Quicksand, "Comic Neue", sans-serif;
+
+  --color-paper: #fdf6e3;
+  --color-paper-dark: #f5ead0;
+  --color-card: #fffdf8;
+  --color-ink: #3a2a1a;
+  --color-ink-soft: #8a7358;
+
+  --color-orange-50: #fff7ec;
+  --color-orange-100: #ffedd2;
+  --color-orange-200: #ffd9a8;
+  --color-orange-300: #ffbb63;
+  --color-orange-400: #fd9a35;
+  --color-orange-500: #f59e0b;
+  --color-orange-600: #d97a06;
+  --color-orange-700: #b35a08;
+  --color-orange-800: #8f440f;
+  --color-orange-900: #75390f;
+
+  /* confidence buckets */
+  --color-bucket-untrained: #e7ded0;
+  --color-bucket-weak: #f0725a;
+  --color-bucket-learning: #f5b942;
+  --color-bucket-solid: #9bd28a;
+  --color-bucket-automatic: #4a9d5c;
+
+  --shadow-card: 0 12px 0 -4px rgba(179, 90, 8, 0.18),
+    0 20px 30px -12px rgba(90, 50, 10, 0.35);
+  --shadow-soft: 0 6px 16px -6px rgba(90, 50, 10, 0.25);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-rounded);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* subtle paper grain via layered radial dots */
+.paper-texture {
+  background-image: radial-gradient(
+      circle at 1px 1px,
+      rgba(179, 90, 8, 0.06) 1px,
+      transparent 0
+    );
+  background-size: 22px 22px;
+}
+
+@keyframes card-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(7px);
+  }
+  60% {
+    transform: translateX(-5px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+.animate-shake {
+  animation: card-shake 0.4s ease-in-out;
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-pop {
+  animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}

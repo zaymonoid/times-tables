@@ -1,0 +1,393 @@
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import {
+  hintsFor,
+  paceOf,
+  saveStore,
+  type Session,
+  type SessionItem,
+  type Split,
+  type Store,
+} from '../engine'
+
+const GRID_SIZE = 12
+
+// Correct answers slower than this were clearly worked out, not recalled — so
+// we pause on them (like a miss) to re-show the strategy instead of advancing.
+const SLOW_ANSWER_MS = 10_000
+
+/** How a single grid cell should paint given the primary split on hover. */
+type CellRole = 'group-a' | 'group-b' | 'ghost' | 'none'
+
+/**
+ * Resolve a cell (1-indexed row/col) against the fact's primary split. Returns
+ * how to paint it. `rows`/`cols` are the rectangle dimensions (max×min).
+ */
+function splitRole(
+  split: Split,
+  rows: number,
+  cols: number,
+  row: number,
+  col: number,
+): CellRole {
+  // The split runs along whichever axis matches the decomposed factor.
+  const axisIsRow = split.factor === rows
+  const along = axisIsRow ? row : col
+  const across = axisIsRow ? col : row
+  const acrossLen = axisIsRow ? cols : rows
+  if (across > acrossLen) return 'none'
+
+  if (split.op === 'plus') {
+    if (along <= split.parts[0]) return 'group-a'
+    if (along <= split.factor) return 'group-b'
+    return 'none'
+  }
+  // minus: draw `whole` groups, the real product solid and the extra ghosted.
+  if (along <= split.factor) return 'group-a'
+  if (along <= split.parts[0]) return 'ghost'
+  return 'none'
+}
+
+interface PracticeCardProps {
+  session: Session
+  store: Store
+  onExit: () => void
+  onFinish: () => void
+}
+
+type Feedback = 'idle' | 'correct' | 'correct-slow' | 'wrong'
+
+interface LastResult {
+  ms: number
+  grade: 'again' | 'hard' | 'good' | 'easy'
+}
+
+function speedLabel(res: LastResult): string {
+  if (res.grade === 'again') return "it'll come back this session"
+  switch (paceOf(res.ms)) {
+    case 'instant':
+      return 'instant ⚡'
+    case 'quick':
+      return 'quick'
+    case 'steady':
+      return 'steady — push for instant'
+    case 'slow':
+      return 'slow — keep drilling'
+  }
+}
+
+export default function PracticeCard({ session, store, onExit, onFinish }: PracticeCardProps) {
+  const [item, setItem] = useState<SessionItem | null>(null)
+  const [input, setInput] = useState('')
+  const [feedback, setFeedback] = useState<Feedback>('idle')
+  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null)
+  const [lastResult, setLastResult] = useState<LastResult | null>(null)
+  const [progress, setProgress] = useState(() => session.progress())
+  const [splitOpen, setSplitOpen] = useState(false)
+  const shownAtRef = useRef(performance.now())
+  const startedRef = useRef(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function loadNext() {
+    const next = session.next()
+    setProgress(session.progress())
+    if (!next) {
+      onFinish()
+      return
+    }
+    setItem(next)
+    setInput('')
+    setFeedback('idle')
+    setCorrectAnswer(null)
+    setLastResult(null)
+    setSplitOpen(false)
+    shownAtRef.current = performance.now()
+  }
+
+  useEffect(() => {
+    if (startedRef.current) return
+    startedRef.current = true
+    loadNext()
+  }, [])
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [item])
+
+  useEffect(
+    () => () => {
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current)
+    },
+    [],
+  )
+
+  function doSubmit() {
+    if (!item) return
+
+    if (feedback === 'wrong' || feedback === 'correct-slow') {
+      loadNext()
+      return
+    }
+    if (feedback === 'correct') return
+
+    const given = Number(input)
+    if (input.trim() === '' || Number.isNaN(given)) return
+
+    const ms = performance.now() - shownAtRef.current
+    const res = session.answer(item, given, ms)
+    saveStore(store)
+
+    setCorrectAnswer(res.correctAnswer)
+    setLastResult({ ms, grade: res.grade })
+    if (res.correct) {
+      // A very slow correct answer pauses on the hint (like a miss) rather than
+      // auto-advancing, so the learner re-reads the strategy they had to derive.
+      if (ms > SLOW_ANSWER_MS) {
+        setFeedback('correct-slow')
+      } else {
+        setFeedback('correct')
+        advanceTimerRef.current = setTimeout(
+          () => loadNext(),
+          res.grade === 'easy' ? 500 : 900,
+        )
+      }
+    } else {
+      setFeedback('wrong')
+    }
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    doSubmit()
+  }
+
+  // The input unmounts on a wrong (or slow-correct) answer, so catch Enter at
+  // the window level to let the keyboard drive "Continue" too.
+  useEffect(() => {
+    if (feedback !== 'wrong' && feedback !== 'correct-slow') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        loadNext()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [feedback])
+
+  if (!item) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-lg font-semibold text-[var(--color-ink-soft)]">Loading…</p>
+      </div>
+    )
+  }
+
+  const [a, b] = item.shownAs
+  // The prompt orientation is randomized, but the array graphic always shows
+  // the canonical larger-first form: more rows than columns.
+  const highlightRows = Math.max(a, b)
+  const highlightCols = Math.min(a, b)
+  const { primary, alt } = hintsFor(item.key)
+
+  // The strategy is revealed after a miss, and also after a very slow correct
+  // answer (which was derived, not recalled) — both pause on the hint.
+  const hintShown = feedback === 'wrong' || feedback === 'correct-slow'
+  const isCorrect = feedback === 'correct' || feedback === 'correct-slow'
+  // Hovering (or tapping) the hint splits the array into the primary breakdown.
+  const splitActive = hintShown && splitOpen && primary.split !== undefined
+
+  const cardBorder = isCorrect
+    ? 'border-[var(--color-bucket-automatic)]'
+    : feedback === 'wrong'
+      ? 'border-[var(--color-bucket-weak)]'
+      : 'border-[var(--color-orange-300)]'
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-4">
+      <div className="flex w-full max-w-md items-center justify-between">
+        <button
+          type="button"
+          onClick={onExit}
+          aria-label="Exit to overview"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-card)] text-lg font-bold text-[var(--color-ink-soft)] shadow-[var(--shadow-soft)] hover:text-[var(--color-bucket-weak)]"
+        >
+          ×
+        </button>
+        <div className="flex items-center gap-2">
+          {item.relearn && (
+            <span className="rounded-full bg-[var(--color-bucket-learning)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--color-ink)]">
+              Relearn
+            </span>
+          )}
+          <div className="flex items-center gap-1">
+            <div className="h-2 w-24 overflow-hidden rounded-full bg-[var(--color-orange-100)]">
+              <div
+                className="h-full bg-[var(--color-orange-500)] transition-all"
+                style={{
+                  width: `${Math.min(100, (progress.done / Math.max(1, progress.total)) * 100)}%`,
+                }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-[var(--color-ink-soft)]">
+              {progress.done}/{progress.total}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className={`w-full max-w-md overflow-hidden rounded-3xl border-4 bg-[var(--color-card)] shadow-[var(--shadow-card)] transition-colors ${cardBorder} ${
+          feedback === 'wrong' ? 'animate-shake' : ''
+        }`}
+      >
+        <div className="bg-[var(--color-orange-500)] px-6 py-6 text-center">
+          <p className="text-5xl font-black tracking-tight text-white drop-shadow-sm sm:text-6xl">
+            {a} × {b}
+          </p>
+        </div>
+
+        <div className="flex flex-col items-center gap-4 px-6 py-6">
+          <div
+            className="grid aspect-square w-full max-w-[220px] gap-[2px]"
+            style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}
+          >
+            {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i) => {
+              const row = Math.floor(i / GRID_SIZE) + 1
+              const col = (i % GRID_SIZE) + 1
+
+              // When the hint's split is showing, paint the two contiguous
+              // groups (and any ghosted "take away" cells) instead of the
+              // single feedback-tinted rectangle.
+              let cellClasses: string
+              if (splitActive && primary.split) {
+                switch (splitRole(primary.split, highlightRows, highlightCols, row, col)) {
+                  case 'group-a':
+                    cellClasses =
+                      'border border-[var(--color-orange-400)] bg-[var(--color-orange-200)]'
+                    break
+                  case 'group-b':
+                    cellClasses =
+                      'border border-[var(--color-orange-600)] bg-[var(--color-orange-400)]'
+                    break
+                  case 'ghost':
+                    cellClasses =
+                      'border border-dashed border-[var(--color-orange-400)] bg-transparent'
+                    break
+                  default:
+                    cellClasses = 'bg-[var(--color-orange-100)]'
+                }
+              } else {
+                const inRect = row <= highlightRows && col <= highlightCols
+                const rectClasses = isCorrect
+                  ? 'border border-[var(--color-bucket-automatic)] bg-[var(--color-bucket-automatic)]/25'
+                  : feedback === 'wrong'
+                    ? 'border border-[var(--color-bucket-weak)] bg-[var(--color-bucket-weak)]/20'
+                    : 'border border-[var(--color-orange-300)] bg-white'
+                cellClasses = inRect ? rectClasses : 'bg-[var(--color-orange-100)]'
+              }
+
+              return (
+                <div
+                  key={i}
+                  className={`aspect-square rounded-[2px] transition-colors duration-300 ${cellClasses}`}
+                />
+              )
+            })}
+          </div>
+
+          {/* Fixed-height zone: every feedback state renders inside the same
+              box so the card never resizes and the page never jumps. */}
+          <div className="flex h-[8.5rem] w-full flex-col items-center justify-center gap-3">
+          {feedback === 'wrong' && correctAnswer !== null && (
+            <p className="animate-pop text-4xl font-black text-[var(--color-bucket-weak)]">
+              {correctAnswer}
+            </p>
+          )}
+          {isCorrect && (
+            <p className="animate-pop text-4xl font-black text-[var(--color-bucket-automatic)]">
+              ✓ {correctAnswer ?? ''}
+            </p>
+          )}
+          {feedback !== 'idle' && lastResult && (
+            <p className="text-xs font-bold text-[var(--color-ink-soft)]">
+              {(lastResult.ms / 1000).toFixed(1)}s · {speedLabel(lastResult)}
+            </p>
+          )}
+
+          {feedback === 'idle' && (
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="numeric"
+              autoFocus
+              value={input}
+              onChange={(e) => setInput(e.target.value.replace(/[^0-9]/g, ''))}
+              className="w-32 rounded-2xl border-2 border-[var(--color-orange-300)] bg-white px-4 py-3 text-center text-3xl font-extrabold text-[var(--color-ink)] outline-none focus:border-[var(--color-orange-500)]"
+              placeholder="?"
+            />
+          )}
+
+          {feedback === 'idle' && (
+            <button
+              type="submit"
+              className="w-full max-w-[200px] rounded-2xl bg-[var(--color-orange-500)] px-6 py-3 text-base font-extrabold text-white shadow-[var(--shadow-soft)] hover:bg-[var(--color-orange-600)]"
+            >
+              Check
+            </button>
+          )}
+          {hintShown && (
+            <button
+              type="submit"
+              className="w-full max-w-[200px] rounded-2xl bg-[var(--color-orange-500)] px-6 py-3 text-base font-extrabold text-white shadow-[var(--shadow-soft)] hover:bg-[var(--color-orange-600)]"
+            >
+              Continue
+            </button>
+          )}
+          </div>
+        </div>
+
+        {/* Fixed two-line height so the card never resizes between states. */}
+        <div
+          className={`flex h-[4.75rem] flex-col items-center justify-center gap-1 bg-[var(--color-orange-100)] px-6 py-2 text-center ${
+            hintShown && primary.split ? 'cursor-pointer' : ''
+          }`}
+          onMouseEnter={() => setSplitOpen(true)}
+          onMouseLeave={() => setSplitOpen(false)}
+          onClick={() => setSplitOpen((v) => !v)}
+        >
+          {hintShown ? (
+            <>
+              <p className="text-xs font-bold text-[var(--color-orange-800)] sm:text-sm">
+                {primary.text}
+              </p>
+              {alt && (
+                <p className="text-[11px] font-semibold text-[var(--color-orange-600)]">
+                  or {alt.text}
+                </p>
+              )}
+              {primary.split && (
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-orange-500)]">
+                  {splitActive ? 'see the two groups above' : 'hover to split the array'}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs font-semibold text-[var(--color-orange-800)] sm:text-sm">
+              {feedback === 'idle' ? 'Speed counts — answer as fast as you can ⚡' : ' '}
+            </p>
+          )}
+        </div>
+      </form>
+
+      <button
+        type="button"
+        onClick={onFinish}
+        className="text-sm font-bold text-[var(--color-ink-soft)] underline decoration-2 underline-offset-4 hover:text-[var(--color-ink)]"
+      >
+        Finished for now
+      </button>
+    </div>
+  )
+}

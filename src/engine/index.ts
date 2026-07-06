@@ -1,0 +1,13 @@
+// Public engine API. UI imports only from this module.
+export * from './types'
+export * from './facts'
+export { loadStore, saveStore, resetStore } from './storage'
+export {
+  confidenceFor,
+  allConfidences,
+  summarizeConfidences,
+  type ConfidenceSummary,
+} from './confidence'
+export { createSession, practiceOutlook, type PracticeOutlook } from './session'
+export { paceOf, type Pace } from './scheduler'
+export { hintsFor, type Strategy, type Split, type FactHints } from './hints'
