@@ -163,23 +163,36 @@ function GrowSquareGrid({ n, family }: { n: number; family: CardFamily }) {
 }
 
 /** A chain of values each doubling the last: v ─×2→ 2v ─×2→ 4v. */
-function DoublingChain({ values, family }: { values: number[]; family: CardFamily }) {
+function DoublingChain({
+  values,
+  caption,
+  family,
+}: {
+  values: number[]
+  caption?: string
+  family: CardFamily
+}) {
   const c = palette(family)
   return (
-    <div className="flex flex-wrap items-center justify-center gap-1.5">
-      {values.map((v, i) => (
-        <span key={i} className="flex items-center gap-1.5">
-          <span
-            className="rounded-lg border-2 px-3 py-1 text-base font-bold"
-            style={{ background: c.fillStrong, borderColor: c.stroke, color: c.ink }}
-          >
-            {v}
+    <div className="flex flex-col items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        {values.map((v, i) => (
+          <span key={i} className="flex items-center gap-1.5">
+            <span
+              className="rounded-lg border-2 px-3 py-1 text-base font-bold"
+              style={{ background: c.fillStrong, borderColor: c.stroke, color: c.ink }}
+            >
+              {v}
+            </span>
+            {i < values.length - 1 && (
+              <span className="text-[10px] font-bold text-[var(--color-ink-soft)]">×2 →</span>
+            )}
           </span>
-          {i < values.length - 1 && (
-            <span className="text-[10px] font-bold text-[var(--color-ink-soft)]">×2 →</span>
-          )}
-        </span>
-      ))}
+        ))}
+      </div>
+      {caption && (
+        <p className="text-xs font-semibold text-[var(--color-ink-soft)]">{caption}</p>
+      )}
     </div>
   )
 }
@@ -314,7 +327,7 @@ export default function StrategyDiagram({
     case 'grow-square':
       return <GrowSquareGrid n={diagram.n} family={family} />
     case 'doubling-chain':
-      return <DoublingChain values={diagram.values} family={family} />
+      return <DoublingChain values={diagram.values} caption={diagram.caption} family={family} />
     case 'place-value':
       return <PlaceValueShift from={diagram.from} to={diagram.to} family={family} />
     case 'multiples':

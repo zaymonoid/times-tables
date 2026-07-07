@@ -24,6 +24,17 @@ describe('specForCard', () => {
     expect(spec.footnote).toBeUndefined()
   })
 
+  it('double-double 4×7 doubles the operand twice and ends on the fact', () => {
+    const spec = specForCard({ kind: 'double-double', other: 7 })
+    expect(spec.diagram).toEqual({
+      type: 'doubling-chain',
+      values: [7, 14, 28],
+      caption: 'doubling twice = ×4',
+    })
+    expect(spec.lines).toEqual(['7 + 7 = 14', '14 + 14 = 28'])
+    expect(spec.final).toEqual({ lhs: '4 × 7 =', answer: 28 })
+  })
+
   it('square-grow 7 grows the previous square by the odd number', () => {
     const spec = specForCard({ kind: 'square-grow', n: 7 })
     expect(spec.lines[0]).toBe('6 × 6 = 36')

@@ -5,7 +5,7 @@ export type Diagram =
   | { type: 'bond-tree'; root: number; left: number; right: number; op: 'plus' | 'minus' }
   | { type: 'two-groups'; box: string; count: number; caption: string }
   | { type: 'grow-square'; n: number }
-  | { type: 'doubling-chain'; values: number[] }
+  | { type: 'doubling-chain'; values: number[]; caption?: string }
   | { type: 'place-value'; from: number; to: string }
   | { type: 'multiples'; values: number[] }
   | { type: 'repeat-digit'; digit: number }
@@ -106,11 +106,18 @@ export function specForCard(card: StrategyCard, fallbackText?: string): CardSpec
     }
     case 'double-double': {
       const { other } = card
+      const twice = 2 * other
+      const four = 4 * other
       return {
         badge: { label: 'Double, double', family: 'leaf' },
-        diagram: { type: 'doubling-chain', values: [other, 2 * other, 4 * other] },
-        lines: [`${other} × 2 = ${2 * other}`, `${2 * other} × 2 = ${4 * other}`],
-        final: { lhs: `${2 * other} + ${2 * other} =`, answer: 4 * other },
+        diagram: {
+          type: 'doubling-chain',
+          values: [other, twice, four],
+          caption: 'doubling twice = ×4',
+        },
+        // The chain shows the ×2 steps; the lines show what each double *is*.
+        lines: [`${other} + ${other} = ${twice}`, `${twice} + ${twice} = ${four}`],
+        final: { lhs: `4 × ${other} =`, answer: four },
       }
     }
     case 'square-grow': {
