@@ -4,6 +4,7 @@ import { ALL_FACT_KEYS } from './facts'
 import { newCard } from './scheduler'
 
 const STORAGE_KEY = 'ttt.v1'
+const WELCOME_KEY = 'ttt.welcomed'
 
 function getStorage(): Storage | null {
   try {
@@ -120,4 +121,18 @@ export function resetStore(now: Date = new Date()): Store {
   const storage = getStorage()
   storage?.removeItem(STORAGE_KEY)
   return freshStore(now)
+}
+
+/**
+ * Whether the welcome/help card has been dismissed before. Stored under a
+ * separate key from the versioned Store so a progress reset doesn't replay
+ * onboarding.
+ */
+export function hasSeenWelcome(): boolean {
+  return getStorage()?.getItem(WELCOME_KEY) === '1'
+}
+
+/** Remember that the welcome/help card has been dismissed. */
+export function markWelcomeSeen(): void {
+  getStorage()?.setItem(WELCOME_KEY, '1')
 }

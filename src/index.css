@@ -5,6 +5,10 @@
   --font-rounded: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN",
     Quicksand, "Comic Neue", sans-serif;
 
+  /* welcome/help modal only — the rest of the app stays on --font-rounded */
+  --font-display: "Fredoka", var(--font-rounded);
+  --font-body: "Nunito", var(--font-rounded);
+
   --color-paper: #fdf6e3;
   --color-paper-dark: #f5ead0;
   --color-card: #fffdf8;

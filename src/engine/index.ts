@@ -1,7 +1,13 @@
 // Public engine API. UI imports only from this module.
 export * from './types'
 export * from './facts'
-export { loadStore, saveStore, resetStore } from './storage'
+export {
+  loadStore,
+  saveStore,
+  resetStore,
+  hasSeenWelcome,
+  markWelcomeSeen,
+} from './storage'
 export {
   confidenceFor,
   allConfidences,

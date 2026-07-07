@@ -62,9 +62,10 @@ interface OverviewProps {
   store: Store
   onPractice: () => void
   onStoreChange: (store: Store) => void
+  onShowHelp: () => void
 }
 
-export default function Overview({ store, onPractice, onStoreChange }: OverviewProps) {
+export default function Overview({ store, onPractice, onStoreChange, onShowHelp }: OverviewProps) {
   const [selected, setSelected] = useState<string | null>(null)
   const [confirmingReset, setConfirmingReset] = useState(false)
 
@@ -95,7 +96,15 @@ export default function Overview({ store, onPractice, onStoreChange }: OverviewP
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <header className="rounded-3xl bg-[var(--color-orange-500)] px-6 py-5 text-center shadow-[var(--shadow-soft)]">
+      <header className="relative rounded-3xl bg-[var(--color-orange-500)] px-6 py-5 text-center shadow-[var(--shadow-soft)]">
+        <button
+          type="button"
+          onClick={onShowHelp}
+          aria-label="How to get the most out of TimesTables"
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg font-black text-white transition-colors hover:bg-white/30"
+        >
+          ?
+        </button>
         <h1 className="text-3xl font-black tracking-tight text-white drop-shadow-sm sm:text-4xl">
           🧮 Times Tables
         </h1>
