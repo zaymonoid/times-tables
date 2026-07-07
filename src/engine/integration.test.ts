@@ -70,24 +70,33 @@ describe('full session flow with per-answer persistence', () => {
     expect(reloaded.stats.sessions).toBe(1)
   })
 
-  it('returning user with nothing due still gets a worthwhile top-up session', () => {
+  it('returning user with nothing due keeps progressing via new facts', () => {
     // First session for a new user: answer the first chunk of 6, then stop
     // ("finished for now"), persisted throughout.
     const store = loadStore(NOW)
     const s1 = createSession(store, NOW)
+    const firstKeys = new Set<string>()
     for (let i = 0; i < 6; i++) {
       const it = s1.next()!
+      firstKeys.add(it.key)
       s1.answer(it, answerOf(it.key), 1500, NOW)
       saveStore(store)
     }
 
-    // Immediately start again on the same day: freshly-reviewed facts are not
-    // due, and new facts flow in — still worthwhile.
+    // Immediately start again on the same day: the freshly-reviewed facts are
+    // not due, so the session moves forward with new facts rather than
+    // re-drilling what was just answered.
     const reloaded = loadStore(NOW)
     const s2 = createSession(reloaded, NOW)
-    let count = 0
-    for (let i = 0; i < 8 && s2.next() !== null; i++) count++
-    expect(count).toBeGreaterThanOrEqual(8)
+    const served: string[] = []
+    for (let i = 0; i < 8; i++) {
+      const it = s2.next()
+      if (!it) break
+      served.push(it.key)
+    }
+    expect(served.length).toBeGreaterThanOrEqual(8)
+    // None of the just-answered facts are replayed.
+    expect(served.some((k) => firstKeys.has(k))).toBe(false)
   })
 
   it('mid-relearn drain: a missed fact keeps reappearing until cleared, then session ends cleanly', () => {

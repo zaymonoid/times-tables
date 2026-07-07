@@ -13,17 +13,20 @@ import { keyFor, factorsOf, answerOf, ALL_FACT_KEYS } from './facts'
 import { gradeAttempt, reviewFact, retrievability } from './scheduler'
 import { confidenceFor } from './confidence'
 
-// Reviews are never capped: every due/weak fact gets into the session (the
-// FSRS due dates are the natural daily limit). New facts flow in continuously
-// in chunks of settings.newPerSession as long as the learner keeps going —
-// the UI offers a "finished for now" exit rather than the engine cutting the
-// session short.
-const MIN_WORTHWHILE = 8
+// Reviews are never capped and never floored: a session contains exactly the
+// facts that are actually due (below target retention) plus a chunk of new
+// facts. If nothing is due and nothing is new, there is nothing to practice —
+// FSRS decides when a fact returns, and we don't manufacture busywork by
+// re-drilling cards the learner already knows. New facts flow in continuously
+// in chunks of settings.newPerSession as long as the learner keeps going — the
+// UI offers a "finished for now" exit rather than the engine cutting short.
 const DUE_THRESHOLD = 0.9
 const RECENT_CAP = 10
-// Facts answered correctly within this window are not used as top-up filler,
-// so "practice again" right after a session doesn't just replay the same set.
-const TOPUP_COOLDOWN_MS = 30 * 60 * 1000
+const DAY_MS = 86_400_000
+// A fact missed this many times in one session stops being re-queued: FSRS has
+// already logged the lapse on the first attempt and will carry it to the next
+// session, so further same-session repeats only balloon the queue.
+const MAX_RELEARN_MISSES = 3
 
 /**
  * Deterministic pedagogical ordering of all 55 facts. Families are ranked
@@ -262,11 +265,14 @@ class SessionImpl implements Session {
     recent.push(attempt)
     if (recent.length > RECENT_CAP) recent.splice(0, recent.length - RECENT_CAP)
 
-    // Stats. medianMs is a cheap online estimate: seed with the first time,
-    // then nudge 5% toward each new sample (a robust median-ish tracker).
+    // Stats. typicalMs is an exponential moving average of response time —
+    // seeded with the first sample, then blended a fixed fraction toward each
+    // new one. Unlike a step scaled by the current value, an EMA is a
+    // well-defined statistic and doesn't drift upward as the value grows.
     this.store.stats.totalAttempts += 1
-    const m = this.store.stats.medianMs
-    this.store.stats.medianMs = m > 0 ? m + Math.sign(ms - m) * 0.05 * m : ms
+    const EMA_ALPHA = 0.1
+    const m = this.store.stats.typicalMs
+    this.store.stats.typicalMs = m > 0 ? m * (1 - EMA_ALPHA) + ms * EMA_ALPHA : ms
 
     // Session bookkeeping. The on-screen card is now answered (folded into
     // `done`), so it no longer counts as in-flight until next() hands out more.
@@ -289,11 +295,15 @@ class SessionImpl implements Session {
     } else {
       run.misses += 1
       // A miss must be answered correctly twice more to clear. Re-queue once
-      // 3–4 positions on and once near the end.
+      // 3–4 positions on and once near the end — but stop after a handful of
+      // misses so a fact the learner keeps failing can't balloon the queue;
+      // FSRS carries it to the next session.
       run.relearnOwed = 2
-      const near = Math.min(this.pending.length, randInt(2, 3))
-      this.pending.splice(near, 0, itemFor(key, true))
-      this.pending.push(itemFor(key, true))
+      if (run.misses <= MAX_RELEARN_MISSES) {
+        const near = Math.min(this.pending.length, randInt(2, 3))
+        this.pending.splice(near, 0, itemFor(key, true))
+        this.pending.push(itemFor(key, true))
+      }
     }
 
     return { correct, correctAnswer, grade }
@@ -345,66 +355,27 @@ class SessionImpl implements Session {
 
 /** Which facts a session started at `now` would contain (selection only). */
 function selectQueueKeys(store: Store, now: Date): FactKey[] {
-  const introduced = ALL_FACT_KEYS.filter((k) => store.facts[k].introduced)
+  // Due/weak: every introduced fact whose retrievability has decayed below the
+  // target. For review-state cards this coincides with FSRS's own due date
+  // (due IS the R = request_retention crossing); using retrievability keeps
+  // selection consistent for learning-step cards, whose due dates are
+  // step-timed rather than retention-timed, and immune to due-date fuzz.
+  // Reviews are never capped, and buildQueue shuffles for presentation, so no
+  // priority sort is needed here — the filter is the whole selection.
+  const dueWeak = ALL_FACT_KEYS.filter(
+    (k) =>
+      store.facts[k].introduced &&
+      retrievability(store.facts[k].card, now) < DUE_THRESHOLD,
+  )
 
-  const withR = introduced.map((k) => ({
-    key: k,
-    r: retrievability(store.facts[k].card, now),
-  }))
-
-  // Due/weak: ALL introduced facts below target retention — reviews are never
-  // capped. Weakest (lowest R) first drives selection priority only;
-  // presentation order is shuffled below.
-  const dueWeak = withR
-    .filter((x) => x.r < DUE_THRESHOLD)
-    .sort((a, b) => a.r - b.r)
-    .map((x) => x.key)
-
-  // New facts in pedagogical order, up to the per-session budget.
+  // New facts in pedagogical order, up to the per-session budget. This is the
+  // only source of forward progress — and the reason a session is rarely empty
+  // while there is anything left to learn.
   const newFacts = PEDAGOGICAL_ORDER.filter(
     (k) => !store.facts[k].introduced,
   ).slice(0, store.settings.newPerSession)
 
-  // A session should always be worthwhile: if too few are actually due, top up
-  // with facts whose review is soonest (nearest due date first) — but skip
-  // anything answered within the cooldown window, otherwise "practice again"
-  // immediately replays the set that was just drilled.
-  const keys = [...dueWeak]
-  let cooldownBlocked = 0
-  if (dueWeak.length < MIN_WORTHWHILE) {
-    const dueSet = new Set(dueWeak)
-    const topUp = introduced
-      .filter((k) => {
-        if (dueSet.has(k)) return false
-        const last = store.facts[k].recent.at(-1)
-        if (last && now.getTime() - last.ts < TOPUP_COOLDOWN_MS) {
-          cooldownBlocked++
-          return false
-        }
-        return true
-      })
-      .sort(
-        (a, b) =>
-          store.facts[a].card.due.getTime() - store.facts[b].card.due.getTime(),
-      )
-      .slice(0, MIN_WORTHWHILE - dueWeak.length)
-    keys.push(...topUp)
-  }
-
-  // If the cooldown left the session thin (typical for "practice again" right
-  // after finishing), fill the gap with extra new facts beyond the usual
-  // per-session budget — forward progress instead of repetition. Only when the
-  // cooldown actually blocked something: a brand-new user's first session
-  // should still respect newPerSession exactly.
-  if (cooldownBlocked > 0 && keys.length + newFacts.length < MIN_WORTHWHILE) {
-    const have = new Set(newFacts)
-    const extras = PEDAGOGICAL_ORDER.filter(
-      (k) => !store.facts[k].introduced && !have.has(k),
-    ).slice(0, MIN_WORTHWHILE - keys.length - newFacts.length)
-    newFacts.push(...extras)
-  }
-
-  return [...keys, ...newFacts]
+  return [...dueWeak, ...newFacts]
 }
 
 function buildQueue(store: Store, now: Date): SessionItem[] {
@@ -427,33 +398,35 @@ export interface PracticeOutlook {
 
 /**
  * What would practicing right now look like? available === 0 only when every
- * fact is introduced, none are below target retention, and everything is
- * inside the top-up cooldown — i.e. genuinely all caught up. nextAt is found
- * by asking the engine's own selection: availability is monotone in time
- * (retrievability only decays, cooldowns only expire), so we binary-search
- * the earliest minute selectQueueKeys() turns non-empty. This keeps the
- * prediction exactly consistent with what the practice button would do —
- * FSRS due dates alone can lie (a learning-step card can be "due" while its
- * retrievability is still above the selection threshold).
+ * fact is introduced and none has decayed below target retention — i.e.
+ * genuinely all caught up, with FSRS holding the next review in the future.
+ * nextAt is found by asking the engine's own selection: availability is
+ * monotone in time (retrievability only decays, and it's the sole gate now),
+ * so we probe forward (doubling) for a time that IS available, then
+ * binary-search the earliest minute selectQueueKeys() turns non-empty. This
+ * keeps the prediction exactly consistent with what the practice button would
+ * do — FSRS due dates alone can lie (a learning-step card can be "due" while
+ * its retrievability is still above the selection threshold).
  */
 export function practiceOutlook(store: Store, now: Date = new Date()): PracticeOutlook {
   const available = selectQueueKeys(store, now).length
   if (available > 0) return { available, nextAt: null }
 
-  // Upper bound: the earliest top-up cooldown expiry guarantees availability
-  // (an off-cooldown introduced fact is always top-up eligible).
-  let hi = Infinity
-  for (const k of ALL_FACT_KEYS) {
-    const f = store.facts[k]
-    if (!f.introduced) continue
-    const last = f.recent.at(-1)
-    hi = Math.min(hi, last ? last.ts + TOPUP_COOLDOWN_MS : now.getTime())
-  }
-  if (!Number.isFinite(hi)) return { available: 0, nextAt: null }
-
   const MINUTE = 60_000
+  const cap = now.getTime() + 400 * DAY_MS
   let lo = now.getTime() // known-unavailable (checked above)
-  hi = Math.max(hi, lo + MINUTE) // known-available
+  let hi = lo + MINUTE
+  let span = MINUTE
+  while (selectQueueKeys(store, new Date(hi)).length === 0 && hi < cap) {
+    lo = hi
+    span *= 2
+    hi = Math.min(cap, lo + span)
+  }
+  // No card recovers within the horizon (only possible with no introduced
+  // facts, or stability measured in years): treat as nothing scheduled.
+  if (selectQueueKeys(store, new Date(hi)).length === 0) {
+    return { available: 0, nextAt: null }
+  }
   while (hi - lo > MINUTE) {
     const mid = lo + Math.floor((hi - lo) / 2)
     if (selectQueueKeys(store, new Date(mid)).length > 0) hi = mid

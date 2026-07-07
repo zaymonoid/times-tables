@@ -136,7 +136,7 @@ describe('session queue construction', () => {
     expect(served).toEqual([...family].sort())
   })
 
-  it('tops up to a worthwhile length when few are due', () => {
+  it('offers no busywork when nothing is due and no new facts remain', () => {
     const store = freshStore(NOW)
     // Introduce and freshly review 12 facts so they are strong (not due).
     const keys = Object.keys(store.facts).slice(0, 12)
@@ -146,9 +146,8 @@ describe('session queue construction', () => {
     }
     store.settings.newPerSession = 0
     const session = createSession(store, NOW)
-    let count = 0
-    while (session.next() !== null) count++
-    expect(count).toBeGreaterThanOrEqual(8)
+    // No floor: strong, not-due facts are never re-drilled just to pad length.
+    expect(session.next()).toBeNull()
   })
 })
 
@@ -248,17 +247,19 @@ describe('session answering', () => {
     void session
   })
 
-  it('updates rolling medianMs and totalAttempts', () => {
+  it('updates rolling typicalMs and totalAttempts', () => {
     const store = freshStore(NOW)
     const session = createSession(store, NOW)
     const item = session.next()!
     session.answer(item, answerOf(item.key), 1800, NOW)
     expect(store.stats.totalAttempts).toBe(1)
-    expect(store.stats.medianMs).toBe(1800) // seeded on first attempt
+    expect(store.stats.typicalMs).toBe(1800) // seeded on first attempt
     const item2 = session.next()!
     session.answer(item2, answerOf(item2.key), 5000, NOW)
     expect(store.stats.totalAttempts).toBe(2)
-    expect(store.stats.medianMs).toBeGreaterThan(1800) // nudged upward
+    // EMA blends toward the slower sample, staying between the two.
+    expect(store.stats.typicalMs).toBeGreaterThan(1800)
+    expect(store.stats.typicalMs).toBeLessThan(5000)
   })
 })
 
@@ -317,10 +318,9 @@ describe('practiceOutlook', () => {
     const o = practiceOutlook(store, NOW)
     expect(o.available).toBe(0)
     expect(o.nextAt).not.toBeNull()
-    // Practice reopens no later than the 30-minute top-up cooldown, and never
-    // in the past.
-    expect(o.nextAt!.getTime()).toBeGreaterThanOrEqual(NOW.getTime())
-    expect(o.nextAt!.getTime()).toBeLessThanOrEqual(NOW.getTime() + 30 * 60 * 1000)
+    // Practice reopens when the soonest card's retrievability decays below the
+    // threshold — in the future, never in the past.
+    expect(o.nextAt!.getTime()).toBeGreaterThan(NOW.getTime())
   })
 })
 

@@ -32,7 +32,7 @@ export function freshStore(now: Date = new Date()): Store {
     version: 1,
     facts,
     settings: { newPerSession: 6 },
-    stats: { sessions: 0, totalAttempts: 0, medianMs: 0 },
+    stats: { sessions: 0, totalAttempts: 0, typicalMs: 0 },
   }
 }
 
@@ -104,7 +104,7 @@ export function loadStore(now: Date = new Date()): Store {
       sessions: typeof stats.sessions === 'number' ? stats.sessions : 0,
       totalAttempts:
         typeof stats.totalAttempts === 'number' ? stats.totalAttempts : 0,
-      medianMs: typeof stats.medianMs === 'number' ? stats.medianMs : 0,
+      typicalMs: typeof stats.typicalMs === 'number' ? stats.typicalMs : 0,
     },
   }
 }

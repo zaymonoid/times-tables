@@ -30,7 +30,7 @@ export interface Store {
   version: 1
   facts: Record<FactKey, FactState>
   settings: { newPerSession: number }
-  stats: { sessions: number; totalAttempts: number; medianMs: number }
+  stats: { sessions: number; totalAttempts: number; typicalMs: number }
 }
 
 export type ConfidenceBucket =

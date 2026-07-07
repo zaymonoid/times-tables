@@ -35,7 +35,7 @@ describe('storage', () => {
     const s = freshStore()
     expect(Object.keys(s.facts)).toHaveLength(55)
     expect(s.settings.newPerSession).toBe(6)
-    expect(s.stats).toEqual({ sessions: 0, totalAttempts: 0, medianMs: 0 })
+    expect(s.stats).toEqual({ sessions: 0, totalAttempts: 0, typicalMs: 0 })
     for (const k of ALL_FACT_KEYS) expect(s.facts[k].introduced).toBe(false)
   })
 
