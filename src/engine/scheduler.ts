@@ -35,14 +35,14 @@ export function newCard(now: Date = new Date()): Card {
  * Absolute pace tiers for a correct answer. The whole system targets
  * automaticity, so the bar is fixed — NOT relative to the user's own typical
  * speed (a slow user grading themselves on a curve defeats the point).
- * "Instant" budgets ~1.5s for reading the prompt and typing 1–3 digits, with
- * the recall itself being immediate. Anything past ~2.5s means the answer was
+ * "Instant" budgets ~2s for reading the prompt and typing 1–3 digits, with
+ * the recall itself being immediate. Anything past ~3s means the answer was
  * worked out, not recalled.
  */
 export type Pace = 'instant' | 'quick' | 'steady' | 'slow'
 
-export const PACE_INSTANT_MS = 1500
-export const PACE_QUICK_MS = 2500
+export const PACE_INSTANT_MS = 2000
+export const PACE_QUICK_MS = 3000
 export const PACE_STEADY_MS = 4000
 
 export function paceOf(ms: number): Pace {

@@ -14,16 +14,17 @@ import {
 } from '../engine'
 
 const BUCKET_CLASS: Record<ConfidenceBucket, string> = {
-  untrained: 'bg-[var(--color-bucket-untrained)] text-[var(--color-ink-soft)]',
-  weak: 'bg-[var(--color-bucket-weak)] text-white',
-  learning: 'bg-[var(--color-bucket-learning)] text-[var(--color-ink)]',
-  solid: 'bg-[var(--color-bucket-solid)] text-[var(--color-ink)]',
-  automatic: 'bg-[var(--color-bucket-automatic)] text-white',
+  untrained:
+    'border-2 border-dashed border-[var(--color-bucket-untrained-text)] bg-[var(--color-bucket-untrained)] text-[var(--color-bucket-untrained-text)]',
+  building: 'bg-[var(--color-bucket-building)] text-[var(--color-bucket-building-text)]',
+  learning: 'bg-[var(--color-bucket-learning)] text-[var(--color-bucket-learning-text)]',
+  solid: 'bg-[var(--color-bucket-solid)] text-[var(--color-bucket-solid-text)]',
+  automatic: 'bg-[var(--color-bucket-automatic)] text-[var(--color-bucket-automatic-text)]',
 }
 
 const BUCKET_LABEL: Record<ConfidenceBucket, string> = {
   untrained: 'Untrained',
-  weak: 'Weak',
+  building: 'Building',
   learning: 'Learning',
   solid: 'Solid',
   automatic: 'Automatic',
@@ -198,7 +199,7 @@ export default function Overview({ store, onPractice, onStoreChange }: OverviewP
                   <span
                     key={i}
                     className={`h-2.5 w-2.5 rounded-full ${
-                      attempt.correct ? 'bg-[var(--color-bucket-automatic)]' : 'bg-[var(--color-bucket-weak)]'
+                      attempt.correct ? 'bg-[var(--color-bucket-automatic)]' : 'bg-[var(--color-miss)]'
                     }`}
                     title={attempt.correct ? 'Correct' : 'Missed'}
                   />
@@ -234,7 +235,7 @@ export default function Overview({ store, onPractice, onStoreChange }: OverviewP
           type="button"
           onClick={handleReset}
           onBlur={() => setConfirmingReset(false)}
-          className="text-xs font-semibold text-[var(--color-ink-soft)] underline decoration-dotted hover:text-[var(--color-bucket-weak)]"
+          className="text-xs font-semibold text-[var(--color-ink-soft)] underline decoration-dotted hover:text-[var(--color-orange-600)]"
         >
           {confirmingReset ? 'Really reset all progress? Click again to confirm' : 'Reset progress'}
         </button>

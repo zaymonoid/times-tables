@@ -22,16 +22,59 @@
   --color-orange-800: #8f440f;
   --color-orange-900: #75390f;
 
-  /* confidence buckets */
-  --color-bucket-untrained: #e7ded0;
-  --color-bucket-weak: #f0725a;
-  --color-bucket-learning: #f5b942;
-  --color-bucket-solid: #9bd28a;
-  --color-bucket-automatic: #4a9d5c;
+  /* confidence buckets: one green hue, five lightness stops — progress is
+     encoded in lightness, not hue, so the grid stays readable with any
+     color-vision deficiency and even in grayscale. */
+  --color-bucket-untrained: #f3f0e7;
+  --color-bucket-untrained-text: #a39e8e;
+  --color-bucket-building: #dceedc;
+  --color-bucket-building-text: #1e5a38;
+  --color-bucket-learning: #a8d9b0;
+  --color-bucket-learning-text: #174d30;
+  --color-bucket-solid: #57b27c;
+  --color-bucket-solid-text: #0b3a22;
+  --color-bucket-automatic: #1e7a4c;
+  --color-bucket-automatic-text: #ffffff;
+
+  /* wrong-answer feedback — warm orange, deliberately off the bucket scale */
+  --color-miss: var(--color-orange-700);
 
   --shadow-card: 0 12px 0 -4px rgba(179, 90, 8, 0.18),
     0 20px 30px -12px rgba(90, 50, 10, 0.35);
   --shadow-soft: 0 6px 16px -6px rgba(90, 50, 10, 0.25);
+}
+
+/* strategy-card pastels (the "solve it two ways" panel). Two families:
+   plum for decomposition/place-value routes, leaf for known-fact/doubling/
+   growth routes. Cool pastels on a near-white panel — a deliberate contrast
+   to the warm orange flashcard, so "here's how to derive it" reads as a
+   calmer, separate mode from the drill itself.
+
+   These are consumed as raw `var(--…)` values in inline SVG/JSX styles (see
+   StrategyDiagram), not only through Tailwind utility classes. `static` forces
+   Tailwind to emit every stop regardless of utility usage — without it the
+   -400 stops (used only for SVG strokes) get tree-shaken away and the
+   number-bond connector lines and circle borders silently vanish. */
+@theme static {
+  --color-plum-50: #f7f2fb;
+  --color-plum-100: #efe5f7;
+  --color-plum-200: #ddc9ee;
+  --color-plum-400: #a97fce;
+  --color-plum-700: #5d3a7e;
+
+  --color-leaf-50: #f1f8ef;
+  --color-leaf-100: #e2f0dd;
+  --color-leaf-200: #c4e2bb;
+  --color-leaf-400: #7cba6d;
+  --color-leaf-700: #33622b;
+
+  --color-panel: #fbfaf6;
+  --color-grow-add: var(--color-orange-300);
+  --color-grow-corner: #f2a6c0;
+
+  /* rose accent for the "fix"/subtract-back step pill */
+  --color-rose-100: #fbe1e8;
+  --color-rose-700: #a03a5d;
 }
 
 html,
@@ -99,4 +142,17 @@ body {
 
 .animate-pop {
   animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* The two strategy cards sit side by side once the panel itself is wide
+   enough — a container query, not a viewport one, so the layout follows the
+   card (which widens on a miss) rather than the window. Hand-written because
+   it keys off the panel's own width. */
+.strategy-panel {
+  container-type: inline-size;
+}
+@container (min-width: 30rem) {
+  .strategy-two-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

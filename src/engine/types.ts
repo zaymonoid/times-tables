@@ -35,7 +35,7 @@ export interface Store {
 
 export type ConfidenceBucket =
   | 'untrained'
-  | 'weak'
+  | 'building'
   | 'learning'
   | 'solid'
   | 'automatic'

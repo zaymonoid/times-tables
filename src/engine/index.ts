@@ -10,4 +10,4 @@ export {
 } from './confidence'
 export { createSession, practiceOutlook, type PracticeOutlook } from './session'
 export { paceOf, type Pace } from './scheduler'
-export { hintsFor, type Strategy, type Split, type FactHints } from './hints'
+export { hintsFor, type Strategy, type StrategyCard, type Split, type FactHints } from './hints'

@@ -55,11 +55,11 @@ describe('confidence', () => {
   })
 
   it('buckets are monotonic in score', () => {
-    const order = ['weak', 'learning', 'solid', 'automatic']
+    const order = ['building', 'learning', 'solid', 'automatic']
     const cutoffs = [0.1, 0.4, 0.7, 0.95]
     const buckets = cutoffs.map((s) => {
       // craft by directly checking bucket boundaries via score mapping
-      if (s < 0.25) return 'weak'
+      if (s < 0.25) return 'building'
       if (s < 0.55) return 'learning'
       if (s < 0.85) return 'solid'
       return 'automatic'
@@ -98,7 +98,7 @@ describe('confidence', () => {
     expect(later.score).toBeLessThan(c.score)
   })
 
-  it('a mature fact answered only slowly reads weak, not automatic', () => {
+  it('a mature fact answered only slowly reads building, not automatic', () => {
     let fact: FactState = {
       key: '6x7',
       card: newCard(new Date('2026-01-01')),
@@ -110,7 +110,7 @@ describe('confidence', () => {
     fact = reviewFact(fact, 'hard', new Date('2026-01-03'))
     fact = reviewFact(fact, 'hard', new Date('2026-01-10'))
     const c = confidenceFor(fact, new Date('2026-01-10T00:01:00Z'))
-    expect(c.bucket).toBe('weak')
+    expect(c.bucket).toBe('building')
   })
 
   it('speed separates otherwise identical accuracy records', () => {

@@ -1,51 +1,20 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
+  answerOf,
   hintsFor,
   paceOf,
   saveStore,
   type Session,
   type SessionItem,
-  type Split,
   type Store,
 } from '../engine'
+import StrategyCardsPanel from './strategy/StrategyCardsPanel'
 
 const GRID_SIZE = 12
 
 // Correct answers slower than this were clearly worked out, not recalled — so
 // we pause on them (like a miss) to re-show the strategy instead of advancing.
 const SLOW_ANSWER_MS = 10_000
-
-/** How a single grid cell should paint given the primary split on hover. */
-type CellRole = 'group-a' | 'group-b' | 'ghost' | 'none'
-
-/**
- * Resolve a cell (1-indexed row/col) against the fact's primary split. Returns
- * how to paint it. `rows`/`cols` are the rectangle dimensions (max×min).
- */
-function splitRole(
-  split: Split,
-  rows: number,
-  cols: number,
-  row: number,
-  col: number,
-): CellRole {
-  // The split runs along whichever axis matches the decomposed factor.
-  const axisIsRow = split.factor === rows
-  const along = axisIsRow ? row : col
-  const across = axisIsRow ? col : row
-  const acrossLen = axisIsRow ? cols : rows
-  if (across > acrossLen) return 'none'
-
-  if (split.op === 'plus') {
-    if (along <= split.parts[0]) return 'group-a'
-    if (along <= split.factor) return 'group-b'
-    return 'none'
-  }
-  // minus: draw `whole` groups, the real product solid and the extra ghosted.
-  if (along <= split.factor) return 'group-a'
-  if (along <= split.parts[0]) return 'ghost'
-  return 'none'
-}
 
 interface PracticeCardProps {
   session: Session
@@ -82,7 +51,6 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null)
   const [lastResult, setLastResult] = useState<LastResult | null>(null)
   const [progress, setProgress] = useState(() => session.progress())
-  const [splitOpen, setSplitOpen] = useState(false)
   const shownAtRef = useRef(performance.now())
   const startedRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -100,7 +68,6 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
     setFeedback('idle')
     setCorrectAnswer(null)
     setLastResult(null)
-    setSplitOpen(false)
     shownAtRef.current = performance.now()
   }
 
@@ -188,35 +155,36 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
   // the canonical larger-first form: more rows than columns.
   const highlightRows = Math.max(a, b)
   const highlightCols = Math.min(a, b)
-  const { primary, alt } = hintsFor(item.key)
 
   // The strategy is revealed after a miss, and also after a very slow correct
   // answer (which was derived, not recalled) — both pause on the hint.
   const hintShown = feedback === 'wrong' || feedback === 'correct-slow'
   const isCorrect = feedback === 'correct' || feedback === 'correct-slow'
-  // Hovering (or tapping) the hint splits the array into the primary breakdown.
-  const splitActive = hintShown && splitOpen && primary.split !== undefined
+
+  // The card widens to fit the two strategy cards only when the hint is shown;
+  // idle ↔ fast-correct never changes width, so typing never reflows.
+  const widthClass = hintShown ? 'max-w-2xl' : 'max-w-md'
 
   const cardBorder = isCorrect
     ? 'border-[var(--color-bucket-automatic)]'
     : feedback === 'wrong'
-      ? 'border-[var(--color-bucket-weak)]'
+      ? 'border-[var(--color-miss)]'
       : 'border-[var(--color-orange-300)]'
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4">
-      <div className="flex w-full max-w-md items-center justify-between">
+      <div className={`flex w-full items-center justify-between transition-all ${widthClass}`}>
         <button
           type="button"
           onClick={onExit}
           aria-label="Exit to overview"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-card)] text-lg font-bold text-[var(--color-ink-soft)] shadow-[var(--shadow-soft)] hover:text-[var(--color-bucket-weak)]"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-card)] text-lg font-bold text-[var(--color-ink-soft)] shadow-[var(--shadow-soft)] hover:text-[var(--color-orange-600)]"
         >
           ×
         </button>
         <div className="flex items-center gap-2">
           {item.relearn && (
-            <span className="rounded-full bg-[var(--color-bucket-learning)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--color-ink)]">
+            <span className="rounded-full bg-[var(--color-bucket-learning)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--color-bucket-learning-text)]">
               Relearn
             </span>
           )}
@@ -238,7 +206,7 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
 
       <form
         onSubmit={handleSubmit}
-        className={`w-full max-w-md overflow-hidden rounded-3xl border-4 bg-[var(--color-card)] shadow-[var(--shadow-card)] transition-colors ${cardBorder} ${
+        className={`w-full overflow-hidden rounded-3xl border-4 bg-[var(--color-card)] shadow-[var(--shadow-card)] transition-all ${widthClass} ${cardBorder} ${
           feedback === 'wrong' ? 'animate-shake' : ''
         }`}
       >
@@ -249,59 +217,42 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
         </div>
 
         <div className="flex flex-col items-center gap-4 px-6 py-6">
-          <div
-            className="grid aspect-square w-full max-w-[220px] gap-[2px]"
-            style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}
-          >
-            {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i) => {
-              const row = Math.floor(i / GRID_SIZE) + 1
-              const col = (i % GRID_SIZE) + 1
-
-              // When the hint's split is showing, paint the two contiguous
-              // groups (and any ghosted "take away" cells) instead of the
-              // single feedback-tinted rectangle.
-              let cellClasses: string
-              if (splitActive && primary.split) {
-                switch (splitRole(primary.split, highlightRows, highlightCols, row, col)) {
-                  case 'group-a':
-                    cellClasses =
-                      'border border-[var(--color-orange-400)] bg-[var(--color-orange-200)]'
-                    break
-                  case 'group-b':
-                    cellClasses =
-                      'border border-[var(--color-orange-600)] bg-[var(--color-orange-400)]'
-                    break
-                  case 'ghost':
-                    cellClasses =
-                      'border border-dashed border-[var(--color-orange-400)] bg-transparent'
-                    break
-                  default:
-                    cellClasses = 'bg-[var(--color-orange-100)]'
-                }
-              } else {
+          {/* On a miss / slow-correct the array gives way to the two-strategy
+              panel; otherwise we show the plain array for the current fact. */}
+          {hintShown ? (
+            <StrategyCardsPanel
+              hints={hintsFor(item.key)}
+              answer={correctAnswer ?? answerOf(item.key)}
+            />
+          ) : (
+            <div
+              className="grid aspect-square w-full max-w-[220px] gap-[2px]"
+              style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}
+            >
+              {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i) => {
+                const row = Math.floor(i / GRID_SIZE) + 1
+                const col = (i % GRID_SIZE) + 1
                 const inRect = row <= highlightRows && col <= highlightCols
                 const rectClasses = isCorrect
                   ? 'border border-[var(--color-bucket-automatic)] bg-[var(--color-bucket-automatic)]/25'
-                  : feedback === 'wrong'
-                    ? 'border border-[var(--color-bucket-weak)] bg-[var(--color-bucket-weak)]/20'
-                    : 'border border-[var(--color-orange-300)] bg-white'
-                cellClasses = inRect ? rectClasses : 'bg-[var(--color-orange-100)]'
-              }
+                  : 'border border-[var(--color-orange-300)] bg-white'
+                const cellClasses = inRect ? rectClasses : 'bg-[var(--color-orange-100)]'
 
-              return (
-                <div
-                  key={i}
-                  className={`aspect-square rounded-[2px] transition-colors duration-300 ${cellClasses}`}
-                />
-              )
-            })}
-          </div>
+                return (
+                  <div
+                    key={i}
+                    className={`aspect-square rounded-[2px] transition-colors duration-300 ${cellClasses}`}
+                  />
+                )
+              })}
+            </div>
+          )}
 
           {/* Fixed-height zone: every feedback state renders inside the same
               box so the card never resizes and the page never jumps. */}
           <div className="flex h-[8.5rem] w-full flex-col items-center justify-center gap-3">
           {feedback === 'wrong' && correctAnswer !== null && (
-            <p className="animate-pop text-4xl font-black text-[var(--color-bucket-weak)]">
+            <p className="animate-pop text-4xl font-black text-[var(--color-miss)]">
               {correctAnswer}
             </p>
           )}
@@ -349,35 +300,14 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
         </div>
 
         {/* Fixed two-line height so the card never resizes between states. */}
-        <div
-          className={`flex h-[4.75rem] flex-col items-center justify-center gap-1 bg-[var(--color-orange-100)] px-6 py-2 text-center ${
-            hintShown && primary.split ? 'cursor-pointer' : ''
-          }`}
-          onMouseEnter={() => setSplitOpen(true)}
-          onMouseLeave={() => setSplitOpen(false)}
-          onClick={() => setSplitOpen((v) => !v)}
-        >
-          {hintShown ? (
-            <>
-              <p className="text-xs font-bold text-[var(--color-orange-800)] sm:text-sm">
-                {primary.text}
-              </p>
-              {alt && (
-                <p className="text-[11px] font-semibold text-[var(--color-orange-600)]">
-                  or {alt.text}
-                </p>
-              )}
-              {primary.split && (
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-orange-500)]">
-                  {splitActive ? 'see the two groups above' : 'hover to split the array'}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-xs font-semibold text-[var(--color-orange-800)] sm:text-sm">
-              {feedback === 'idle' ? 'Speed counts — answer as fast as you can ⚡' : ' '}
-            </p>
-          )}
+        <div className="flex h-[4.75rem] flex-col items-center justify-center gap-1 bg-[var(--color-orange-100)] px-6 py-2 text-center">
+          <p className="text-xs font-semibold text-[var(--color-orange-800)] sm:text-sm">
+            {hintShown
+              ? 'Read both roads, then Continue'
+              : feedback === 'idle'
+                ? 'Speed counts — answer as fast as you can ⚡'
+                : ' '}
+          </p>
         </div>
       </form>
 

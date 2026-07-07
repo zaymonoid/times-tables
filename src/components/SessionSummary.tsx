@@ -62,7 +62,7 @@ export default function SessionSummary({
               {summary.missed.map((key) => (
                 <span
                   key={key}
-                  className="rounded-full bg-[color-mix(in_srgb,var(--color-bucket-weak)_15%,white)] px-3 py-1 text-xs font-bold text-[var(--color-bucket-weak)]"
+                  className="rounded-full bg-[color-mix(in_srgb,var(--color-miss)_15%,white)] px-3 py-1 text-xs font-bold text-[var(--color-miss)]"
                 >
                   {key.replace('x', ' × ')} = {answerOf(key)}
                 </span>

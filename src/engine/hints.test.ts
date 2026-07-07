@@ -26,6 +26,58 @@ describe('hints', () => {
     }
   })
 
+  it('every fact has an alternate strategy', () => {
+    for (const key of ALL_FACT_KEYS) {
+      const { alt } = hintsFor(key)
+      expect(alt, key).toBeTruthy()
+    }
+  })
+
+  it('every strategy card is arithmetically consistent with its fact', () => {
+    for (const key of ALL_FACT_KEYS) {
+      const product = answerOf(key)
+      const { primary, alt } = hintsFor(key)
+      for (const s of [primary, alt].filter(Boolean) as Strategy[]) {
+        const c = s.card
+        switch (c.kind) {
+          case 'bond-plus':
+            expect(c.parts[0] + c.parts[1], key).toBe(c.factor)
+            expect(c.factor * c.other, key).toBe(product)
+            break
+          case 'bond-minus':
+            expect(c.whole - c.small, key).toBe(c.factor)
+            expect(c.factor * c.other, key).toBe(product)
+            break
+          case 'double':
+            expect(2 * c.half * c.other, key).toBe(product)
+            break
+          case 'double-double':
+            expect(4 * c.other, key).toBe(product)
+            break
+          case 'square-grow':
+            expect(c.n * c.n, key).toBe(product)
+            expect((c.n - 1) ** 2 + (2 * c.n - 1), key).toBe(product)
+            break
+          case 'place-value':
+            expect(10 * c.other, key).toBe(product)
+            break
+          case 'half-of-ten':
+            expect(5 * c.other, key).toBe(product)
+            break
+          case 'count-by-fives':
+            expect(5 * c.other, key).toBe(product)
+            break
+          case 'repeat-digit':
+            expect(11 * c.other, key).toBe(product)
+            expect(c.other, key).toBeLessThanOrEqual(9)
+            break
+          case 'generic':
+            break
+        }
+      }
+    }
+  })
+
   it('splits reference an actual factor and add up to the product', () => {
     for (const key of ALL_FACT_KEYS) {
       const [x, y] = factorsOf(key)

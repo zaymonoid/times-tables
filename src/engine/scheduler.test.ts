@@ -17,9 +17,9 @@ function mkFact(): FactState {
 describe('paceOf', () => {
   it('tiers by absolute response time', () => {
     expect(paceOf(900)).toBe('instant')
-    expect(paceOf(1500)).toBe('instant')
-    expect(paceOf(2000)).toBe('quick')
+    expect(paceOf(2000)).toBe('instant')
     expect(paceOf(2500)).toBe('quick')
+    expect(paceOf(3000)).toBe('quick')
     expect(paceOf(3500)).toBe('steady')
     expect(paceOf(4000)).toBe('steady')
     expect(paceOf(4200)).toBe('slow')
@@ -35,7 +35,7 @@ describe('fluencyOf', () => {
 
   it('correct answers scale by pace', () => {
     expect(fluencyOf({ correct: true, ms: 1200 })).toBe(1) // instant
-    expect(fluencyOf({ correct: true, ms: 2000 })).toBe(0.75) // quick
+    expect(fluencyOf({ correct: true, ms: 2500 })).toBe(0.75) // quick
     expect(fluencyOf({ correct: true, ms: 3500 })).toBe(0.45) // steady
     expect(fluencyOf({ correct: true, ms: 5000 })).toBe(0.2) // slow
   })
@@ -49,7 +49,7 @@ describe('gradeAttempt', () => {
 
   it('only instant recall earns easy', () => {
     expect(gradeAttempt(true, 1200)).toBe('easy')
-    expect(gradeAttempt(true, 2000)).toBe('good')
+    expect(gradeAttempt(true, 2500)).toBe('good')
   })
 
   it('correct but computed grades hard', () => {

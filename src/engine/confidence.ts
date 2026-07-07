@@ -20,7 +20,7 @@ const MATURITY_REPS = 3
 
 function bucketFor(score: number, trained: boolean): ConfidenceBucket {
   if (!trained) return 'untrained'
-  if (score < 0.25) return 'weak'
+  if (score < 0.25) return 'building'
   if (score < 0.55) return 'learning'
   if (score < 0.85) return 'solid'
   return 'automatic'
@@ -30,7 +30,7 @@ function bucketFor(score: number, trained: boolean): ConfidenceBucket {
  * score = projected retention at +7d × recent-fluency weight × maturity.
  * - fluency weight = mean fluencyOf over recent attempts: wrong answers count
  *   0 and correct answers scale by pace, so a fact that's only ever answered
- *   slowly (worked out, not recalled) reads weak regardless of accuracy.
+ *   slowly (worked out, not recalled) reads building regardless of accuracy.
  * - maturity = min(1, reps / 3), so mastery needs repeated spaced evidence.
  * Untrained facts score 0.
  */
@@ -82,7 +82,7 @@ export function summarizeConfidences(
 ): ConfidenceSummary {
   const buckets: Record<ConfidenceBucket, number> = {
     untrained: 0,
-    weak: 0,
+    building: 0,
     learning: 0,
     solid: 0,
     automatic: 0,
