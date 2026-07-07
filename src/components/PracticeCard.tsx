@@ -1,16 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   answerOf,
-  hintsFor,
   paceOf,
   saveStore,
   type Session,
   type SessionItem,
   type Store,
 } from '../engine'
-import StrategyCardsPanel from './strategy/StrategyCardsPanel'
-
-const GRID_SIZE = 12
+import QuestionView from './practice/QuestionView'
+import Interstitial from './practice/Interstitial'
 
 // Correct answers slower than this were clearly worked out, not recalled — so
 // we pause on them (like a miss) to re-show the strategy instead of advancing.
@@ -151,15 +149,18 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
   }
 
   const [a, b] = item.shownAs
-  // The prompt orientation is randomized, but the array graphic always shows
-  // the canonical larger-first form: more rows than columns.
-  const highlightRows = Math.max(a, b)
-  const highlightCols = Math.min(a, b)
 
   // The strategy is revealed after a miss, and also after a very slow correct
   // answer (which was derived, not recalled) — both pause on the hint.
   const hintShown = feedback === 'wrong' || feedback === 'correct-slow'
   const isCorrect = feedback === 'correct' || feedback === 'correct-slow'
+  // Which view fills the shared container.
+  const phase = hintShown ? 'interstitial' : 'question'
+
+  // Formatted once here so the presentational children stay string-driven.
+  const speedText = lastResult
+    ? `${(lastResult.ms / 1000).toFixed(1)}s · ${speedLabel(lastResult)}`
+    : null
 
   // The card widens to fit the two strategy cards only when the hint is shown;
   // idle ↔ fast-correct never changes width, so typing never reflows.
@@ -210,6 +211,7 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
           feedback === 'wrong' ? 'animate-shake' : ''
         }`}
       >
+        {/* Shared orange a×b banner, above whichever view is active. */}
         <div className="bg-[var(--color-orange-500)] px-6 py-6 text-center">
           <p className="text-5xl font-black tracking-tight text-white drop-shadow-sm sm:text-6xl">
             {a} × {b}
@@ -217,97 +219,25 @@ export default function PracticeCard({ session, store, onExit, onFinish }: Pract
         </div>
 
         <div className="flex flex-col items-center gap-4 px-6 py-6">
-          {/* On a miss / slow-correct the array gives way to the two-strategy
-              panel; otherwise we show the plain array for the current fact. */}
-          {hintShown ? (
-            <StrategyCardsPanel
-              hints={hintsFor(item.key)}
-              answer={correctAnswer ?? answerOf(item.key)}
+          {phase === 'question' ? (
+            <QuestionView
+              a={a}
+              b={b}
+              isCorrect={feedback === 'correct'}
+              input={input}
+              onInputChange={setInput}
+              inputRef={inputRef}
+              answer={correctAnswer}
+              speedText={speedText}
             />
           ) : (
-            <div
-              className="grid aspect-square w-full max-w-[220px] gap-[2px]"
-              style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}
-            >
-              {Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i) => {
-                const row = Math.floor(i / GRID_SIZE) + 1
-                const col = (i % GRID_SIZE) + 1
-                const inRect = row <= highlightRows && col <= highlightCols
-                const rectClasses = isCorrect
-                  ? 'border border-[var(--color-bucket-automatic)] bg-[var(--color-bucket-automatic)]/25'
-                  : 'border border-[var(--color-orange-300)] bg-white'
-                const cellClasses = inRect ? rectClasses : 'bg-[var(--color-orange-100)]'
-
-                return (
-                  <div
-                    key={i}
-                    className={`aspect-square rounded-[2px] transition-colors duration-300 ${cellClasses}`}
-                  />
-                )
-              })}
-            </div>
-          )}
-
-          {/* Fixed-height zone: every feedback state renders inside the same
-              box so the card never resizes and the page never jumps. */}
-          <div className="flex h-[8.5rem] w-full flex-col items-center justify-center gap-3">
-          {feedback === 'wrong' && correctAnswer !== null && (
-            <p className="animate-pop text-4xl font-black text-[var(--color-miss)]">
-              {correctAnswer}
-            </p>
-          )}
-          {isCorrect && (
-            <p className="animate-pop text-4xl font-black text-[var(--color-bucket-automatic)]">
-              ✓ {correctAnswer ?? ''}
-            </p>
-          )}
-          {feedback !== 'idle' && lastResult && (
-            <p className="text-xs font-bold text-[var(--color-ink-soft)]">
-              {(lastResult.ms / 1000).toFixed(1)}s · {speedLabel(lastResult)}
-            </p>
-          )}
-
-          {feedback === 'idle' && (
-            <input
-              ref={inputRef}
-              type="text"
-              inputMode="numeric"
-              autoFocus
-              value={input}
-              onChange={(e) => setInput(e.target.value.replace(/[^0-9]/g, ''))}
-              className="w-32 rounded-2xl border-2 border-[var(--color-orange-300)] bg-white px-4 py-3 text-center text-3xl font-extrabold text-[var(--color-ink)] outline-none focus:border-[var(--color-orange-500)]"
-              placeholder="?"
+            <Interstitial
+              variant={feedback === 'wrong' ? 'wrong' : 'slow'}
+              factKey={item.key}
+              answer={correctAnswer ?? answerOf(item.key)}
+              speedText={speedText}
             />
           )}
-
-          {feedback === 'idle' && (
-            <button
-              type="submit"
-              className="w-full max-w-[200px] rounded-2xl bg-[var(--color-orange-500)] px-6 py-3 text-base font-extrabold text-white shadow-[var(--shadow-soft)] hover:bg-[var(--color-orange-600)]"
-            >
-              Check
-            </button>
-          )}
-          {hintShown && (
-            <button
-              type="submit"
-              className="w-full max-w-[200px] rounded-2xl bg-[var(--color-orange-500)] px-6 py-3 text-base font-extrabold text-white shadow-[var(--shadow-soft)] hover:bg-[var(--color-orange-600)]"
-            >
-              Continue
-            </button>
-          )}
-          </div>
-        </div>
-
-        {/* Fixed two-line height so the card never resizes between states. */}
-        <div className="flex h-[4.75rem] flex-col items-center justify-center gap-1 bg-[var(--color-orange-100)] px-6 py-2 text-center">
-          <p className="text-xs font-semibold text-[var(--color-orange-800)] sm:text-sm">
-            {hintShown
-              ? 'Read both roads, then Continue'
-              : feedback === 'idle'
-                ? 'Speed counts — answer as fast as you can ⚡'
-                : ' '}
-          </p>
         </div>
       </form>
 

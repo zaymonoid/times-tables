@@ -3,15 +3,14 @@ import StrategyCardView from './StrategyCardView'
 
 interface StrategyCardsPanelProps {
   hints: FactHints
-  answer: number
 }
 
 /**
- * The "Solve it two ways" panel: the two strategy cards side by side and a
- * footer confirming both routes reach the same answer. The fact itself is
- * already shown in the practice card's banner above.
+ * The "Solve it two ways" panel: the two strategy cards side by side. The fact
+ * and its answer are shown above (the practice card banner and the interstitial
+ * verdict), so the panel no longer restates the answer itself.
  */
-export default function StrategyCardsPanel({ hints, answer }: StrategyCardsPanelProps) {
+export default function StrategyCardsPanel({ hints }: StrategyCardsPanelProps) {
   const strategies = [hints.primary, hints.alt].filter(Boolean)
   const bothWays = strategies.length > 1
 
@@ -21,16 +20,6 @@ export default function StrategyCardsPanel({ hints, answer }: StrategyCardsPanel
         {strategies.map((s, i) => (
           <StrategyCardView key={i} strategy={s!} />
         ))}
-      </div>
-
-      <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-leaf-200)] bg-[var(--color-leaf-50)] py-2.5">
-        <span className="font-semibold text-[var(--color-leaf-700)]" aria-hidden>
-          ✓
-        </span>
-        <span className="text-sm font-semibold text-[var(--color-ink)]">
-          {bothWays ? 'Both roads lead to' : 'The answer is'}
-        </span>
-        <span className="text-xl font-black text-[var(--color-ink)]">{answer}</span>
       </div>
     </div>
   )

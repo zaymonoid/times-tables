@@ -101,7 +101,7 @@ export default function Overview({ store, onPractice, onStoreChange, onShowHelp 
           type="button"
           onClick={onShowHelp}
           aria-label="How to get the most out of TimesTables"
-          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg font-black text-white transition-colors hover:bg-white/30"
+          className="absolute right-4 top-4 flex h-9 w-9 cursor-pointer select-none items-center justify-center rounded-full bg-white/20 text-lg font-black text-white transition-colors hover:bg-white/30"
         >
           ?
         </button>
