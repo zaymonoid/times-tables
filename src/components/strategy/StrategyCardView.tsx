@@ -100,6 +100,12 @@ export default function StrategyCardView({ strategy }: { strategy: Strategy }) {
               <OddNumbers n={spec.footnote.n} />
             </div>
           )}
+
+          {spec.footnote?.type === 'note' && (
+            <p className="mt-1 rounded-xl bg-[var(--color-paper-dark)]/60 px-3 py-2 text-xs font-medium text-[var(--color-ink-soft)]">
+              {spec.footnote.text}
+            </p>
+          )}
         </>
       )}
     </div>

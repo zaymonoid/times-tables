@@ -276,23 +276,53 @@ function PlaceValueShift({ from, to, family }: { from: number; to: string; famil
   )
 }
 
-/** Repeat-the-digit pattern: d, d → dd. */
-function RepeatDigitBoxes({ digit, family }: { digit: number; family: CardFamily }) {
-  const c = palette(family)
-  const box = (content: string) => (
-    <div
-      className="rounded-xl border-2 px-3 py-2 text-lg font-bold"
-      style={{ background: c.fillStrong, borderColor: c.stroke, color: c.ink }}
-    >
-      {content}
-    </div>
-  )
+/**
+ * Same digit, two homes: 11 = 10 + 1, so the digit lands in both the tens and
+ * the ones place. Tens column is plum, ones column is leaf, ignoring `family`.
+ */
+function RepeatDigitBoxes({ digit }: { digit: number; family: CardFamily }) {
+  const column = (
+    fam: CardFamily,
+    pill: string,
+    place: string,
+    sub: string,
+  ) => {
+    const c = palette(fam)
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        <span
+          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+          style={{ background: c.fill, color: c.ink }}
+        >
+          {pill}
+        </span>
+        <span className="text-sm font-bold leading-none" style={{ color: c.stroke }}>
+          ↓
+        </span>
+        <div
+          className="rounded-xl border-2 px-4 py-2 text-lg font-bold"
+          style={{ background: c.fillStrong, borderColor: c.stroke, color: c.ink }}
+        >
+          {digit}
+        </div>
+        <span className="text-[11px] font-bold uppercase tracking-wide text-[var(--color-ink-soft)]">
+          {place}
+        </span>
+        <span className="text-xs font-semibold text-[var(--color-ink-soft)]">{sub}</span>
+      </div>
+    )
+  }
   return (
-    <div className="flex items-center gap-2">
-      {box(`${digit}`)}
-      {box(`${digit}`)}
-      <span className="text-xs font-bold text-[var(--color-ink-soft)]">→</span>
-      {box(`${digit}${digit}`)}
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex items-start justify-center gap-6">
+        {column('plum', `10 × ${digit}`, 'tens', `${digit} tens = ${digit * 10}`)}
+        {column('leaf', `1 × ${digit}`, 'ones', `${digit} ones = ${digit}`)}
+      </div>
+      <p className="max-w-[220px] text-sm font-semibold text-[var(--color-ink)]">
+        11 is <strong className="font-black">a ten and a one</strong> so the{' '}
+        <strong className="font-black">{digit}</strong> lands in{' '}
+        <strong className="font-black">both places</strong>.
+      </p>
     </div>
   )
 }

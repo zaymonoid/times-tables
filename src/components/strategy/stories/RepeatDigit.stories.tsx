@@ -5,7 +5,7 @@ import StrategyCardView from '../StrategyCardView'
 type Args = { other: number }
 
 const meta = {
-  title: 'Strategies/Digit pattern',
+  title: 'Strategies/Same digit, two homes',
   render: ({ other }: Args) => {
     const strategy: Strategy = { text: '', card: { kind: 'repeat-digit', other } }
     return <StrategyCardView strategy={strategy} />

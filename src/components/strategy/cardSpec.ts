@@ -11,8 +11,10 @@ export type Diagram =
   | { type: 'repeat-digit'; digit: number }
   | { type: 'none' }
 
-/** An optional pattern strip shown below the sum. */
-export type Footnote = { type: 'odd-numbers'; n: number }
+/** An optional pattern strip or note shown below the sum. */
+export type Footnote =
+  | { type: 'odd-numbers'; n: number }
+  | { type: 'note'; text: string }
 
 export type CardFamily = 'plum' | 'leaf'
 
@@ -167,10 +169,14 @@ export function specForCard(card: StrategyCard, fallbackText?: string): CardSpec
     case 'repeat-digit': {
       const { other } = card
       return {
-        badge: { label: 'Digit pattern', family: 'plum' },
+        badge: { label: 'Same digit, two homes', family: 'plum' },
         diagram: { type: 'repeat-digit', digit: other },
-        lines: [`11 × ${other} = ${other} then ${other}`],
-        final: { lhs: `11 × ${other} =`, answer: 11 * other },
+        lines: [],
+        final: { lhs: `${other * 10} + ${other} =`, answer: 11 * other },
+        footnote: {
+          type: 'note',
+          text: 'Works for 11 × 1 up to 11 × 9. Past that, the digits crowd — break apart instead: 11 × 12 = 120 + 12.',
+        },
       }
     }
     case 'generic':
